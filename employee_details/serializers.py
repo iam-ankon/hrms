@@ -66,6 +66,11 @@ class EmployeeTerminationSerializer(serializers.ModelSerializer):
         model = EmployeeTermination
         fields = '__all__'
 
+class TerminationAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TerminationAttachment
+        fields = '__all__'
+
 class InterviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interview

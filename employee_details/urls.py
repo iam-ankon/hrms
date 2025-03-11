@@ -16,6 +16,7 @@ router.register("finance_provisions", FinanceProvisionViewSet)
 router.register("employee_attachments", EmployeeAttachmentListCreateView)
 router.register("tad_groups", TADGroupsViewSet)
 router.register("employee_termination", EmployeeTerminationViewSet)
+router.register("termination_attachment", TerminationAttachmentListCreateView)
 
 
 

@@ -4,6 +4,7 @@ from .models import *
 
 admin.site.register(EmployeeDetails)
 admin.site.register(EmployeeTermination)
+admin.site.register(TerminationAttachment)
 admin.site.register(TADGroups)
 admin.site.register(EmployeeAttachment)
 admin.site.register(Interview)

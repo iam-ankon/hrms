@@ -115,3 +115,43 @@ class EmployeeAttachmentDeleteView(generics.DestroyAPIView):
     serializer_class = EmployeeAttachmentSerializer
 
 
+class TerminationAttachmentListCreateView(viewsets.ModelViewSet):
+    queryset = TerminationAttachment.objects.all()
+    serializer_class = TerminationAttachmentSerializer
+
+    def get_queryset(self):
+        employee_id = self.request.query_params.get("employee_id")
+        if employee_id:
+            return self.queryset.filter(employee__id=employee_id)
+        return self.queryset
+
+    def create(self, request, *args, **kwargs):
+        files = request.FILES.getlist('file')  # Get multiple files
+        employee_id = request.data.get('employee')  # Get employee ID
+        descriptions = request.data.getlist('description')  # Get descriptions for each file
+
+        if not employee_id:
+            return Response({"error": "Employee ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(descriptions) != len(files):
+            return Response({"error": "Number of descriptions must match number of files"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            employee = EmployeeDetails.objects.get(id=employee_id)  # ✅ Use EmployeeTermination
+        except EmployeeDetails.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        attachments = [
+            TerminationAttachment(employee=employee, file=file, description=descriptions[i])
+            for i, file in enumerate(files)
+        ]
+
+        TerminationAttachment.objects.bulk_create(attachments)  # Bulk insert
+
+        return Response({"message": "Files uploaded successfully"}, status=status.HTTP_201_CREATED)
+
+
+
+class TerminationAttachmentDeleteView(generics.DestroyAPIView):
+    queryset = TerminationAttachment.objects.all()
+    serializer_class = TerminationAttachmentSerializer

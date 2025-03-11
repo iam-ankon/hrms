@@ -25,19 +25,7 @@ from django.db import models
 class TADGroups(models.Model):
     company_name = models.CharField(max_length=100, unique=True)
     def __str__(self):
-        return self.company_name
-
-class EmployeeTermination(models.Model):
-    employee_id = models.CharField(max_length=20, unique=True)
-    name = models.CharField(max_length=255)
-    designation = models.CharField(max_length=255)
-    department = models.CharField(max_length=255)
-    company = models.ForeignKey(TADGroups, on_delete=models.CASCADE, related_name='terminated_employees', null=True, blank=True)
-    salary = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return self.name
-    
+        return self.company_name   
 
 # Employee Details Model
 class EmployeeDetails(models.Model):
@@ -64,7 +52,25 @@ class EmployeeDetails(models.Model):
     def __str__(self):
         return self.name
 
+class EmployeeTermination(models.Model):
+    employee_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=255)
+    designation = models.CharField(max_length=255)
+    department = models.CharField(max_length=255)
+    company = models.ForeignKey(TADGroups, on_delete=models.CASCADE, related_name='terminated_employees', null=True, blank=True)
+    salary = models.DecimalField(max_digits=10, decimal_places=2)
 
+    def __str__(self):
+        return self.name
+
+class TerminationAttachment(models.Model):
+    employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
+    file = models.FileField(upload_to="termination_attachments/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True, null=True)  # Add description field
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.file.name}" 
 # Attendance Model
 class Attendance(models.Model):
     employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
