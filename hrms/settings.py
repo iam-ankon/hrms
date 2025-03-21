@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-dxpw45)5xpr8vzr%kd4iz)#_6xuz_)eeb2qs458uu$pzm=m5y=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["192.168.1.100", "localhost", "127.0.0.1",'*']
 
 
 # Application definition
@@ -96,6 +96,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'hrms.wsgi.application'
 
+SESSION_COOKIE_SAMESITE = 'None'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

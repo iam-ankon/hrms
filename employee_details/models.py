@@ -1,18 +1,17 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.mail import EmailMessage, send_mail
 from django.conf import settings
-import logging
-from django.core.exceptions import ValidationError
 import mimetypes
 from datetime import time
-
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
-from .models import *
-
 import json
-from django.views.decorators.csrf import csrf_protect
+import logging
+
 
 logger = logging.getLogger(__name__)
 # Email Log Model
