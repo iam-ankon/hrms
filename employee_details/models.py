@@ -111,23 +111,33 @@ class Notification(models.Model):
 # Interview Model
 class Interview(models.Model):
     name = models.CharField(max_length=255)
+    position_for = models.CharField(max_length=255, blank=True, null=True)
     age = models.IntegerField(blank=True, null=True)
     reference = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(unique=True, blank=True, null=True)
-    phone = models.CharField(max_length=20, unique=True, blank=True, null=True)  
+    phone = models.CharField(max_length=20, unique=True, blank=True, null=True) 
+    place = models.CharField(max_length=255, blank=True, null=True) 
     interview_date = models.DateTimeField()
-    interviewee_confirmed = models.BooleanField(default=False) 
-    feedback_provided = models.BooleanField(default=False) 
-    english_proficiency = models.BooleanField(default=False)  
-    good_behaviour = models.BooleanField(default=False)  
-    relevant_skills = models.BooleanField(default=False)  
-    cultural_fit = models.BooleanField(default=False)  
-    clarity_of_communication = models.BooleanField(default=False)  
+    education = models.IntegerField(blank=True, null=True) 
+    job_knowledge = models.IntegerField(blank=True, null=True) 
+    work_experience = models.IntegerField(blank=True, null=True)
+    communication = models.IntegerField(blank=True, null=True)  
+    personality = models.IntegerField(blank=True, null=True) 
+    potential = models.IntegerField(blank=True, null=True)  
+    general_knowledge = models.IntegerField(blank=True, null=True)  
+    assertiveness = models.IntegerField(blank=True, null=True)
     interview_questions = models.TextField(blank=True, null=True)  
     interview_mark = models.IntegerField(blank=True, null=True)
     interview_result = models.CharField(max_length=255, blank=True, null=True)
     interview_notes = models.TextField(blank=True, null=True)
-
+    current_remuneration = models.IntegerField(blank=True, null=True)
+    expected_package = models.IntegerField(blank=True, null=True)
+    notice_period_required = models.IntegerField(blank=True, null=True)
+    recommendation = models.TextField(blank=True, null=True)
+    immediate_recruitment = models.BooleanField(default=False)
+    on_hold = models.BooleanField(default=False)
+    no_good = models.BooleanField(default=False)
+    final_selection_remarks = models.TextField(blank=True, null=True)
 
 
     def __str__(self):
@@ -158,6 +168,7 @@ class LetterSend(models.Model):
 
 class CVAdd(models.Model):
     name = models.CharField(max_length=255)
+    position_for = models.CharField(max_length=255, blank=True, null=True)
     age = models.IntegerField(blank=True, null=True)
     reference = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(unique=True,blank=True, null=True)
