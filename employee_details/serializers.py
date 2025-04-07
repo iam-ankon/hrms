@@ -24,6 +24,11 @@ class EmployeeDetailsSerializer(serializers.ModelSerializer):
         return EmployeeDetails.objects.create(**validated_data)
 
 
+class PerformanseAppraisalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PerformanseAppraisal
+        fields = '__all__'
+
 # Notification, EmailLog, and Attendance serializers remain the same.
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,6 +39,36 @@ class EmailLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailLog
         fields = '__all__'
+
+class EmployeeLeaveSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)  # Ensure read-only
+    class Meta:
+        model = EmployeeLeave
+        fields = '__all__'
+    def create(self, validated_data):
+        # Extract employee instance properly
+        employee_data = validated_data.pop('employee')
+        employee = EmployeeDetails.objects.get(id=employee_data.id)  # Get the employee instance
+        validated_data['employee'] = employee  # Assign the instance back
+        return super().create(validated_data)
+    
+class EmployeeLeaveBalanceSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)  # Ensure read-only
+    class Meta:
+        model = EmployeeLeaveBalance
+        fields = '__all__'
+    def create(self, validated_data):
+        # Extract employee instance properly
+        employee_data = validated_data.pop('employee')
+        employee = EmployeeDetails.objects.get(id=employee_data.id)
+        validated_data['employee'] = employee  # Assign the instance back
+        return super().create(validated_data)    
+
+class EmployeeLeaveTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeLeaveType
+        fields = '__all__'
+
 
 class AttendanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)  # Ensure read-only
@@ -111,3 +146,4 @@ class InviteMailSerializer(serializers.ModelSerializer):
     class Meta:
         model = InviteMail
         fields = '__all__'
+

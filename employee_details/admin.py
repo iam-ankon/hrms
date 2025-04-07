@@ -3,6 +3,7 @@ from .models import *
 
 
 admin.site.register(EmployeeDetails)
+admin.site.register(PerformanseAppraisal)
 admin.site.register(EmployeeTermination)
 admin.site.register(TerminationAttachment)
 admin.site.register(TADGroups)
@@ -11,6 +12,9 @@ admin.site.register(Interview)
 admin.site.register(InviteMail)
 admin.site.register(Notification)
 admin.site.register(Attendance)
+admin.site.register(EmployeeLeave)
+admin.site.register(EmployeeLeaveType)
+admin.site.register(EmployeeLeaveBalance)
 admin.site.register(LetterSend)
 admin.site.register(CVAdd)
 admin.site.register(ITProvision)

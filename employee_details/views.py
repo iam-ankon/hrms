@@ -34,6 +34,9 @@ class EmployeeTerminationViewSet(viewsets.ModelViewSet):
         # Handle the update logic here if necessary
         return super().update(request, *args, **kwargs)
 
+class PerformanseAppraisalViewSet(viewsets.ModelViewSet):
+    queryset = PerformanseAppraisal.objects.all()
+    serializer_class = PerformanseAppraisalSerializer
 
 class TADGroupsViewSet(viewsets.ModelViewSet):
     queryset = TADGroups.objects.all()
@@ -58,6 +61,17 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
+class EmployeeLeaveViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeLeave.objects.all()
+    serializer_class = EmployeeLeaveSerializer
+
+class EmployeeLeaveBalanceViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeLeaveBalance.objects.all()
+    serializer_class = EmployeeLeaveBalanceSerializer
+
+class EmployeeLeaveTypeViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeLeaveType.objects.all()
+    serializer_class = EmployeeLeaveTypeSerializer
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()

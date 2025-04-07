@@ -57,6 +57,48 @@ class EmployeeDetails(models.Model):
     def __str__(self):
         return self.name
 
+class PerformanseAppraisal(models.Model):
+    employee_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=255)
+    designation = models.CharField(max_length=255)
+    joining_date = models.DateField()
+    department = models.CharField(max_length=255)
+    last_increment_date = models.DateField()
+    last_promotion_date = models.DateField()
+    last_education = models.CharField(max_length=255)
+    job_knowledge = models.IntegerField(blank=True, null=True)
+    job_description = models.TextField(blank=True, null=True)
+    performance_in_meetings = models.IntegerField(blank=True, null=True)
+    performance_description = models.TextField(blank=True, null=True)
+    communication_skills = models.IntegerField(blank=True, null=True)
+    communication_description = models.TextField(blank=True, null=True)
+    reliability = models.IntegerField(blank=True, null=True)
+    reliability_description = models.TextField(blank=True, null=True)
+    initiative = models.IntegerField(blank=True, null=True)
+    initiative_description = models.TextField(blank=True, null=True)
+    stress_management = models.IntegerField(blank=True, null=True)
+    stress_management_description = models.TextField(blank=True, null=True)
+    co_operation = models.IntegerField(blank=True, null=True)
+    co_operation_description = models.TextField(blank=True, null=True)
+    leadership = models.IntegerField(blank=True, null=True)
+    leadership_description = models.TextField(blank=True, null=True)
+    discipline = models.IntegerField(blank=True, null=True)
+    discipline_description = models.TextField(blank=True, null=True)
+    ethical_considerations = models.IntegerField(blank=True, null=True)
+    ethical_considerations_description = models.TextField(blank=True, null=True)
+    promotion = models.BooleanField(default=False,blank=True, null=True)
+    increment = models.BooleanField(default=False,blank=True, null=True)
+    performance_reward = models.BooleanField(default=False,blank=True, null=True)
+    performance = models.TextField(blank=True, null=True)
+    expected_performance = models.TextField(blank=True, null=True)
+    present_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
+    proposed_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
+    present_designation = models.CharField(max_length=255,blank=True, null=True)
+    proposed_designation = models.CharField(max_length=255,blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
 class EmployeeTermination(models.Model):
     employee_id = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=255)
@@ -90,6 +132,82 @@ class Attendance(models.Model):
     # Method to check if check-in is after office start time
     def is_late_check_in(self):
         return self.check_in > self.office_start_time  # Compare check-in with dynamic office start time
+
+class EmployeeLeaveBalance(models.Model):
+    employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
+    public_festival_holiday = models.IntegerField(default=0)
+    casual_leave = models.IntegerField(default=0)
+    sick_leave = models.IntegerField(default=0)
+    earned_leave = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.public_festival_holiday} - {self.casual_leave} - {self.sick_leave} - {self.earned_leave}"
+
+class EmployeeLeaveType(models.Model):
+    public_festival_holiday = models.IntegerField(default=0)
+    casual_leave = models.IntegerField(default=0)
+    sick_leave = models.IntegerField(default=0)
+    earned_leave = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"Leave Types - Public Festival Holiday: {self.public_festival_holiday}, Casual Leave: {self.casual_leave}, Sick Leave: {self.sick_leave}, Earned Leave: {self.earned_leave}"
+
+
+class EmployeeLeave(models.Model):
+    Public_Festival_Holiday = "Public Festival Holiday"
+    Casual_Leave = "Casual Leave"
+    Sick_Leave = "Sick Leave"
+    Earned_Leave = "Earned Leave"
+
+    LEAVE_CHOICES = [
+        ("public_festival_holiday", "Public Festival Holiday"),
+        ("casual_leave", "Casual Leave"),
+        ("sick_leave", "Sick Leave"),
+        ("earned_leave", "Earned Leave"),
+    ]
+    
+    employee = models.ForeignKey('EmployeeDetails', on_delete=models.CASCADE)
+    leave_type = models.CharField(choices=LEAVE_CHOICES, max_length=255)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    reason = models.TextField(blank=True, null=True)
+    status = models.CharField(
+        max_length=50, 
+        choices=[("approved", "Approved"), ("pending", "Pending"), ("rejected", "Rejected")], 
+        default="pending"
+    )
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.leave_type}"
+
+    def save(self, *args, **kwargs):
+        # If the leave request is approved, deduct leave balance
+        if self.status == "approved":
+            self.deduct_leave_balance()
+
+        super(EmployeeLeave, self).save(*args, **kwargs)
+
+    def deduct_leave_balance(self):
+        """
+        Deduct the number of leave days from the employee's leave balance.
+        """
+        leave_days = (self.end_date - self.start_date).days + 1  # +1 to include both start and end dates
+
+        # Get the EmployeeLeaveBalance instance
+        leave_balance = EmployeeLeaveBalance.objects.get(employee=self.employee)
+
+        # Deduct the leave days based on the leave type
+        if self.leave_type == "public_festival_holiday":
+            leave_balance.public_festival_holiday -= leave_days
+        elif self.leave_type == "casual_leave":
+            leave_balance.casual_leave -= leave_days
+        elif self.leave_type == "sick_leave":
+            leave_balance.sick_leave -= leave_days
+        elif self.leave_type == "earned_leave":
+            leave_balance.earned_leave -= leave_days
+        
+        # Save the updated balance
+        leave_balance.save()
 
 class EmployeeAttachment(models.Model):
     employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE, related_name="attachments")
@@ -145,9 +263,8 @@ class Interview(models.Model):
 
 
 
-# CV Management Model
-from django.db import models
 
+# Letter Send Model
 class LetterSend(models.Model):
     OFFER_LETTER = "Offer Letter"
     APPOINTMENT_LETTER = "Appointment Letter"
@@ -348,28 +465,22 @@ def payroll_email(sender, instance, **kwargs):
         )
 
 
-# @receiver(post_save, sender=Mdsir)
-# def payroll_email(sender, instance, **kwargs):
-#     if  instance.email:
-#         subject = ""
-        
-#         message = f"Dear ankon."
-
-#         email = EmailMessage(
-#             subject=subject,
-#             body=message,
-#             from_email=settings.DEFAULT_FROM_EMAIL,
-#             to=[instance.email],
-#         )
-#         email.send(fail_silently=True)
-
-#         # Log Email
-#         EmailLog.objects.create(
-#             recipient=instance.email,
-#             subject=subject,
-#             message=message
-#         )
-
+@receiver(post_save, sender=EmployeeDetails)
+def create_leave_balance(sender, instance, created, **kwargs):
+    if created:
+        print(f"New Employee Created: {instance.name}")
+        leave_type = EmployeeLeaveType.objects.last()  # Get the most recent leave type configuration
+        if leave_type:
+            print(f"Assigning leave balance: {leave_type.public_festival_holiday}, {leave_type.casual_leave}, {leave_type.sick_leave}, {leave_type.earned_leave}")
+            EmployeeLeaveBalance.objects.create(
+                employee=instance,
+                public_festival_holiday=leave_type.public_festival_holiday,
+                casual_leave=leave_type.casual_leave,
+                sick_leave=leave_type.sick_leave,
+                earned_leave=leave_type.earned_leave,
+            )
+        else:
+            print("No leave type configuration found.")
 
 
 def save_mdsir_details(request):
@@ -393,7 +504,7 @@ def email(sender, instance, **kwargs):
     # Now interview_details will be available in the instance
     interview_details = instance.interview_details or {}
     # Generate a link for the Interview Update Page
-    frontend_url = "http://localhost:5173/interviews"  # Update this with your actual frontend URL
+    frontend_url = "http://192.168.4.183:5173/interviews"  # Update this with your actual frontend URL
     interview_id = interview_details.get('id', '')  # Assuming each interview has an 'id'
     update_link = f"{frontend_url}?interview_id={interview_id}"
 

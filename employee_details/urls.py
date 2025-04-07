@@ -4,9 +4,13 @@ from .views import *
 
 router = DefaultRouter()
 router.register('employees', EmployeeDetailsViewSet)
+router.register('performanse_appraisals', PerformanseAppraisalViewSet)
 router.register('notifications', NotificationViewSet)
 router.register('email_logs', EmailLogViewSet)  # New Email Log API
 router.register('attendance', AttendanceViewSet)
+router.register('employee_leave_types', EmployeeLeaveTypeViewSet)
+router.register('employee_leaves', EmployeeLeaveViewSet)
+router.register('employee_leave_balances', EmployeeLeaveBalanceViewSet)
 router.register("interviews", InterviewViewSet)
 router.register("letter_send", LetterSendViewSet)
 router.register("CVAdd", CVAddViewSet) 
