@@ -42,6 +42,7 @@ class EmailLogSerializer(serializers.ModelSerializer):
 
 class EmployeeLeaveSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)  # Ensure read-only
+    company_name = serializers.CharField(source='employee.company.company_name', read_only=True)  # Ensure read-only
     class Meta:
         model = EmployeeLeave
         fields = '__all__'

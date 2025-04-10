@@ -133,12 +133,26 @@ class Attendance(models.Model):
     def is_late_check_in(self):
         return self.check_in > self.office_start_time  # Compare check-in with dynamic office start time
 
+
+
 class EmployeeLeaveBalance(models.Model):
     employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
+    employee_code = models.CharField(max_length=20, blank=True, null=True)
     public_festival_holiday = models.IntegerField(default=0)
     casual_leave = models.IntegerField(default=0)
     sick_leave = models.IntegerField(default=0)
     earned_leave = models.IntegerField(default=0)
+    leave_balance = models.IntegerField(default=0)
+
+    def save(self, *args, **kwargs):
+        # Calculate the total leave balance
+        self.leave_balance = (
+            self.public_festival_holiday + 
+            self.casual_leave + 
+            self.sick_leave + 
+            self.earned_leave
+        )
+        super(EmployeeLeaveBalance, self).save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.employee.name} - {self.public_festival_holiday} - {self.casual_leave} - {self.sick_leave} - {self.earned_leave}"
@@ -166,20 +180,36 @@ class EmployeeLeave(models.Model):
         ("earned_leave", "Earned Leave"),
     ]
     
-    employee = models.ForeignKey('EmployeeDetails', on_delete=models.CASCADE)
-    leave_type = models.CharField(choices=LEAVE_CHOICES, max_length=255)
+    employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
+    to = models.EmailField(blank=True, null=True)
+    receiver_name = models.CharField(max_length=255, blank=True, null=True)
+    employee_code = models.CharField(max_length=20, blank=True, null=True)
+    designation = models.CharField(max_length=255,blank=True, null=True)
+    joining_date = models.DateField(blank=True, null=True)
+    department = models.CharField(max_length=255,blank=True, null=True)
+    company = models.ForeignKey(TADGroups, on_delete=models.CASCADE,  null=True, blank=True)
+    personal_phone = models.CharField(max_length=20,blank=True, null=True)
+    sub_person = models.CharField(max_length=255,blank=True, null=True)
+    date = models.DateField(blank=True, null=True)
+    leave_days = models.IntegerField(default=0)
+    comment = models.TextField(blank=True, null=True)
+    leave_type = models.CharField(choices=LEAVE_CHOICES, max_length=255,blank=True, null=True)
     start_date = models.DateField()
     end_date = models.DateField()
+    balance = models.IntegerField(default=0,blank=True, null=True)
+    date_of_joining_after_leave = models.DateField(blank=True, null=True)
+    actual_date_of_joining = models.DateField(blank=True, null=True)
+    reson_for_delay = models.TextField(blank=True, null=True)
     reason = models.TextField(blank=True, null=True)
     status = models.CharField(
         max_length=50, 
         choices=[("approved", "Approved"), ("pending", "Pending"), ("rejected", "Rejected")], 
-        default="pending"
+        default="pending",blank=True, null=True
     )
 
     def __str__(self):
         return f"{self.employee.name} - {self.leave_type}"
-
+    
     def save(self, *args, **kwargs):
         # If the leave request is approved, deduct leave balance
         if self.status == "approved":
@@ -610,3 +640,118 @@ def send_invitation_email(sender, instance, **kwargs):
             subject=subject,
             message=message
         )
+
+
+# Function to send email when a leave request is created
+@receiver(post_save, sender=EmployeeLeave)
+def send_leave_email(sender, instance, created, **kwargs):
+    if not created:
+        return  # Only send email when the leave request is newly created
+
+    if not instance.to:
+        logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+        return
+
+    employee = instance.employee
+    receiver_name = instance.receiver_name or "HR"
+
+    # Prepare update link
+    leave_details = getattr(instance, 'leave_details', {}) or {}
+    frontend_url = "http://192.168.4.183:5173/edit-leave-request"
+    leave_id = leave_details.get('id', instance.id)
+    update_link = f"{frontend_url}/{leave_id}"
+
+    subject = f"{instance.leave_type} Request - {employee.name}"
+    message = (
+        f"Dear {receiver_name},\n\n"
+        f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
+        f"has submitted a leave request.\n\n"
+        f"Leave Type: {instance.leave_type}\n"
+        f"Duration: {instance.start_date} to {instance.end_date}\n"
+        f"Leave Days: {instance.leave_days}\n"
+        f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
+        f"Reason: {instance.reason or 'N/A'}\n"
+        f"Substituting Person: {instance.sub_person or 'N/A'}\n"
+        f"Contact: {instance.personal_phone or 'N/A'}\n\n"
+        f"Click the link below to update the leave request:\n{update_link}\n\n"
+        f"Best Regards,\n"
+        f"HR Leave System"
+    )
+
+    email = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[instance.to]
+    )
+
+    try:
+        email_sent = email.send(fail_silently=False)
+        if email_sent:
+            logger.info(f"Leave request email sent successfully to {instance.to}")
+
+            EmailLog.objects.create(
+                recipient=instance.to,
+                subject=subject,
+                message=message
+            )
+
+            Notification.objects.create(
+                employee=employee,
+                message=f"Your leave request ({instance.leave_type}) has been sent to {instance.to}."
+            )
+        else:
+            logger.error("Email sending failed but no exception was raised.")
+    except Exception as e:
+        logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
+        raise ValidationError(f"Error sending email: {str(e)}")
+
+
+@receiver(post_save, sender=EmployeeLeave)
+def send_leave_email(sender, instance, **kwargs):
+    # Send email for both creation and update
+    if not instance.to:
+        logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+        return
+
+    employee = instance.employee
+    receiver_name = instance.receiver_name or "HR"
+
+    # Prepare update link
+    frontend_url = "http://192.168.4.183:5173/edit-leave-request"
+    leave_id = instance.id
+    update_link = f"{frontend_url}/{leave_id}"
+
+    subject = f"{instance.leave_type} Request - {employee.name}"
+    message = (
+        f"Dear {receiver_name},\n\n"
+        f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
+        f"has submitted a leave request.\n\n"
+        f"Leave Type: {instance.leave_type}\n"
+        f"Duration: {instance.start_date} to {instance.end_date}\n"
+        f"Leave Days: {instance.leave_days}\n"
+        f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
+        f"Reason: {instance.reason or 'N/A'}\n"
+        f"Substituting Person: {instance.sub_person or 'N/A'}\n"
+        f"Contact: {instance.personal_phone or 'N/A'}\n\n"
+        f"Click the link below to update the leave request:\n{update_link}\n\n"
+        f"Best Regards,\n"
+        f"HR Leave System"
+    )
+
+    email = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[instance.to]
+    )
+
+    try:
+        email_sent = email.send(fail_silently=False)
+        if email_sent:
+            logger.info(f"Leave request email sent successfully to {instance.to}")
+        else:
+            logger.error("Email sending failed but no exception was raised.")
+    except Exception as e:
+        logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
+
