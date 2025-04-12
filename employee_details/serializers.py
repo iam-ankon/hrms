@@ -5,22 +5,19 @@ from .models import *
 
 # Modify EmployeeDetailsSerializer in serializers.py
 class EmployeeDetailsSerializer(serializers.ModelSerializer):
-    company_name = serializers.CharField(source='company.company_name', read_only=True)  # Ensure read-only
+    company_name = serializers.CharField(source='company.company_name', read_only=True)
 
     class Meta:
         model = EmployeeDetails
         fields = '__all__'
 
     def update(self, instance, validated_data):
-        # Remove emergency_contact related code here
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
 
     def create(self, validated_data):
-        # Remove emergency_contact related code here
         return EmployeeDetails.objects.create(**validated_data)
 
 

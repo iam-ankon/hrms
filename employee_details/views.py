@@ -18,9 +18,6 @@ from io import BytesIO
 
 
 
-
-
-
 # Modify EmployeeDetailsViewSet in views.py
 class EmployeeDetailsViewSet(viewsets.ModelViewSet):
     queryset = EmployeeDetails.objects.all()

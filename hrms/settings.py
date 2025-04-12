@@ -160,15 +160,23 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
-
+# Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'ar7web47@gmail.com'
-EMAIL_HOST_PASSWORD = 'raaf gocq iirk pmaa'
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+#995
+
+EMAIL_HOST = 'mail.texweave.net'  # or the actual SMTP server provided by TextWave
+EMAIL_PORT = 587  # Typically 587 for TLS, 465 for SSL - confirm with TextWave
+EMAIL_USE_TLS = True  # Set to False if using SSL on port 465
+EMAIL_HOST_USER = 'ankon@texweave.net'  # Your TextWave email address
+EMAIL_HOST_PASSWORD = 'softeng@123#'  # Your TextWave email password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER  # Sender address
+
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'ar7web47@gmail.com'
+# EMAIL_HOST_PASSWORD = 'raaf gocq iirk pmaa'
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
 

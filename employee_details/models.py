@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save,pre_save
 from django.dispatch import receiver
 from django.core.mail import EmailMessage, send_mail
 from django.conf import settings
@@ -11,8 +11,15 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 import json
 import logging
+import pillow_heif
+from django.core.files.base import ContentFile
+from io import BytesIO
+import os
+from PIL import Image
+from datetime import time, datetime, timedelta
 
 
+pillow_heif.register_heif_opener()
 logger = logging.getLogger(__name__)
 # Email Log Model
 class EmailLog(models.Model):
@@ -46,7 +53,7 @@ class EmployeeDetails(models.Model):
     reference_phone = models.CharField(max_length=20, blank=True, null=True)
     job_title = models.CharField(max_length=255)
     department = models.CharField(max_length=255)
-    company = models.ForeignKey(TADGroups, on_delete=models.CASCADE, related_name='employees', null=True, blank=True)
+    company = models.ForeignKey('TADGroups', on_delete=models.CASCADE, related_name='employees', null=True, blank=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2)
     reporting_leader = models.CharField(max_length=255)
     special_skills = models.TextField(blank=True, null=True)
@@ -56,6 +63,21 @@ class EmployeeDetails(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Convert HEIC image to JPG before saving
+        if self.image1 and self.image1.name.lower().endswith(".heic"):
+            heif_file = pillow_heif.read_heif(self.image1)
+            image = Image.frombytes(
+                heif_file.mode, heif_file.size, heif_file.data, "raw"
+            )
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG")
+            file_name = os.path.splitext(self.image1.name)[0] + ".jpg"
+            self.image1.save(file_name, ContentFile(buffer.getvalue()), save=False)
+
+        super().save(*args, **kwargs)
+
 
 class PerformanseAppraisal(models.Model):
     employee_id = models.CharField(max_length=20, unique=True)
@@ -124,15 +146,35 @@ class Attendance(models.Model):
     date = models.DateField(auto_now_add=True)
     check_in = models.TimeField()
     check_out = models.TimeField(null=True, blank=True)
-    office_start_time = models.TimeField(default=time(9, 30))  # New field for office start time
-
+    office_start_time = models.TimeField(default=time(9, 30))
+    in_time = models.TimeField(null=True, blank=True)
+    delay_time = models.TimeField(null=True, blank=True)
+    
     def __str__(self):
         return f"{self.employee.name} - {self.date}"
 
-    # Method to check if check-in is after office start time
     def is_late_check_in(self):
-        return self.check_in > self.office_start_time  # Compare check-in with dynamic office start time
+        return self.check_in > self.office_start_time
 
+    def calculate_time_fields(self):
+        # Convert times to datetime objects for calculation
+        office_start = datetime.combine(datetime.today(), self.office_start_time)
+        check_in_dt = datetime.combine(datetime.today(), self.check_in)
+        
+        if self.check_in <= self.office_start_time:
+            # Employee is early or on time
+            time_diff = office_start - check_in_dt
+            self.in_time = (datetime.min + time_diff).time()
+            self.delay_time = None
+        else:
+            # Employee is late
+            time_diff = check_in_dt - office_start
+            self.delay_time = (datetime.min + time_diff).time()
+            self.in_time = None
+
+@receiver(pre_save, sender=Attendance)
+def calculate_attendance_times(sender, instance, **kwargs):
+    instance.calculate_time_fields()
 
 
 class EmployeeLeaveBalance(models.Model):
@@ -181,6 +223,7 @@ class EmployeeLeave(models.Model):
     ]
     
     employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
+    email = models.EmailField(blank=True, null=True)
     to = models.EmailField(blank=True, null=True)
     receiver_name = models.CharField(max_length=255, blank=True, null=True)
     employee_code = models.CharField(max_length=20, blank=True, null=True)
@@ -274,7 +317,6 @@ class Interview(models.Model):
     potential = models.IntegerField(blank=True, null=True)  
     general_knowledge = models.IntegerField(blank=True, null=True)  
     assertiveness = models.IntegerField(blank=True, null=True)
-    interview_questions = models.TextField(blank=True, null=True)  
     interview_mark = models.IntegerField(blank=True, null=True)
     interview_result = models.CharField(max_length=255, blank=True, null=True)
     interview_notes = models.TextField(blank=True, null=True)
@@ -542,34 +584,46 @@ def email(sender, instance, **kwargs):
         subject = "Interview Details"
 
         message = f"""
-        Dear MD Sir,
+        Dear Hiring Manager,
 
-        Here are the interview details:
+        Here are the complete interview details for {interview_details.get('name', 'the candidate')}:
 
-        Name: {interview_details.get('name', 'N/A')}
-        Age: {interview_details.get('age', 'N/A')}
-        Reference: {interview_details.get('reference', 'N/A')}
-        Email: {interview_details.get('email', 'N/A')}
-        Phone: {interview_details.get('phone', 'N/A')}
-        Interview Date: {interview_details.get('interview_date', 'N/A')}
-        Interview Mark: {interview_details.get('interview_mark', 'N/A')}
-        Interview Result: {interview_details.get('interview_result', 'N/A')}
-        Interview Notes: {interview_details.get('interview_notes', 'No notes available')}
-        Feedback Provided: {"Yes" if interview_details.get('feedback_provided') else "No"}
-        English Proficiency: {"Yes" if interview_details.get('english_proficiency') else "No"}
-        Good Behavior: {"Yes" if interview_details.get('good_behaviour') else "No"}
-        Relevant Skills: {"Yes" if interview_details.get('relevant_skills') else "No"}
-        Cultural Fit: {"Yes" if interview_details.get('cultural_fit') else "No"}
-        Clarity of Communication: {"Yes" if interview_details.get('clarity_of_communication') else "No"}
-        Interview Questions: {interview_details.get('interview_questions', 'No questions recorded')}
+        **Candidate Information:**
+        - Name: {interview_details.get('name', 'N/A')}
+        - Position Applied: {interview_details.get('position_for', 'N/A')}
+        - Age: {interview_details.get('age', 'N/A')}
+        - Reference: {interview_details.get('reference', 'N/A')}
+        - Email: {interview_details.get('email', 'N/A')}
+        - Phone: {interview_details.get('phone', 'N/A')}
 
-        Click the link below to update the interview details:
+        **Interview Details:**
+        - Interview Date: {interview_details.get('interview_date', 'N/A')}
+        - Current Remuneration: {interview_details.get('current_remuneration', 'N/A')}
+        - Expected Package: {interview_details.get('expected_package', 'N/A')}
+        - Notice Period: {interview_details.get('notice_period_required', 'N/A')} days
+
+        **Evaluation Scores (1-20):**
+        - Education: {interview_details.get('education', 'N/A')}
+        - Job Knowledge: {interview_details.get('job_knowledge', 'N/A')}
+
+        **Evaluation Scores (1-10):**
+        - Work Experience: {interview_details.get('work_experience', 'N/A')}
+        - Communication: {interview_details.get('communication', 'N/A')}
+        - Personality: {interview_details.get('personality', 'N/A')}
+        - Potential: {interview_details.get('potential', 'N/A')}
+        - General Knowledge: {interview_details.get('general_knowledge', 'N/A')}
+        - Assertiveness: {interview_details.get('assertiveness', 'N/A')}
+
+        **Interview Results:**
+        - Total Interview Mark: {interview_details.get('interview_mark', 'N/A')}
+        - Result: {interview_details.get('interview_result', 'Pending')}
+
+        Click the link below to update or review the interview details:
         {update_link}
 
         Best Regards,
         HR Team
         """
-
         email = EmailMessage(
             subject=subject,
             body=message,
@@ -643,115 +697,184 @@ def send_invitation_email(sender, instance, **kwargs):
 
 
 # Function to send email when a leave request is created
+# @receiver(post_save, sender=EmployeeLeave)
+# def send_leave_email(sender, instance, created, **kwargs):
+#     if not created:
+#         return  # Only send email when the leave request is newly created
+
+#     if not instance.to:
+#         logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+#         return
+
+#     employee = instance.employee
+#     receiver_name = instance.receiver_name or "HR"
+
+#     # Prepare update link
+#     leave_details = getattr(instance, 'leave_details', {}) or {}
+#     frontend_url = "http://192.168.4.183:5173/edit-leave-request"
+#     leave_id = leave_details.get('id', instance.id)
+#     update_link = f"{frontend_url}/{leave_id}"
+
+#     subject = f"{instance.leave_type} Request - {employee.name}"
+#     message = (
+#         f"Dear {receiver_name},\n\n"
+#         f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
+#         f"has submitted a leave request.\n\n"
+#         f"Leave Type: {instance.leave_type}\n"
+#         f"Duration: {instance.start_date} to {instance.end_date}\n"
+#         f"Leave Days: {instance.leave_days}\n"
+#         f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
+#         f"Reason: {instance.reason or 'N/A'}\n"
+#         f"Substituting Person: {instance.sub_person or 'N/A'}\n"
+#         f"Contact: {instance.personal_phone or 'N/A'}\n\n"
+#         f"Click the link below to update the leave request:\n{update_link}\n\n"
+#         f"Best Regards,\n"
+#         f"HR Leave System"
+#     )
+
+#     email = EmailMessage(
+#         subject=subject,
+#         body=message,
+#         from_email=settings.DEFAULT_FROM_EMAIL,
+#         to=[instance.to]
+#     )
+
+#     try:
+#         email_sent = email.send(fail_silently=False)
+#         if email_sent:
+#             logger.info(f"Leave request email sent successfully to {instance.to}")
+
+#             EmailLog.objects.create(
+#                 recipient=instance.to,
+#                 subject=subject,
+#                 message=message
+#             )
+
+#             Notification.objects.create(
+#                 employee=employee,
+#                 message=f"Your leave request ({instance.leave_type}) has been sent to {instance.to}."
+#             )
+#         else:
+#             logger.error("Email sending failed but no exception was raised.")
+#     except Exception as e:
+#         logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
+#         raise ValidationError(f"Error sending email: {str(e)}")
+
+
+# @receiver(post_save, sender=EmployeeLeave)
+# def send_leave_email(sender, instance, **kwargs):
+#     # Send email for both creation and update
+#     if not instance.to:
+#         logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+#         return
+
+#     employee = instance.employee
+#     receiver_name = instance.receiver_name or "HR"
+
+#     # Prepare update link
+#     frontend_url = "http://192.168.4.183:5173/edit-leave-request"
+#     leave_id = instance.id
+#     update_link = f"{frontend_url}/{leave_id}"
+
+#     subject = f"{instance.leave_type} Request - {employee.name}"
+#     message = (
+#         f"Dear {receiver_name},\n\n"
+#         f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
+#         f"has submitted a leave request.\n\n"
+#         f"Leave Type: {instance.leave_type}\n"
+#         f"Duration: {instance.start_date} to {instance.end_date}\n"
+#         f"Leave Days: {instance.leave_days}\n"
+#         f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
+#         f"Reason: {instance.reason or 'N/A'}\n"
+#         f"Substituting Person: {instance.sub_person or 'N/A'}\n"
+#         f"Contact: {instance.personal_phone or 'N/A'}\n\n"
+#         f"Click the link below to update the leave request:\n{update_link}\n\n"
+#         f"Best Regards,\n"
+#         f"HR Leave System"
+#     )
+
+#     email = EmailMessage(
+#         subject=subject,
+#         body=message,
+#         from_email=settings.DEFAULT_FROM_EMAIL,
+#         to=[instance.to]
+#     )
+
+#     try:
+#         email_sent = email.send(fail_silently=False)
+#         if email_sent:
+#             logger.info(f"Leave request email sent successfully to {instance.to}")
+#         else:
+#             logger.error("Email sending failed but no exception was raised.")
+#     except Exception as e:
+#         logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
+
 @receiver(post_save, sender=EmployeeLeave)
 def send_leave_email(sender, instance, created, **kwargs):
-    if not created:
-        return  # Only send email when the leave request is newly created
-
+    """
+    Send email notification when a leave request is created or updated.
+    Email is sent from the employee's email (instance.email) to the recipient (instance.to)
+    """
+    # Validate recipient email
     if not instance.to:
-        logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+        logger.warning(f"No recipient email provided for leave ID {instance.id}")
         return
 
-    employee = instance.employee
-    receiver_name = instance.receiver_name or "HR"
-
-    # Prepare update link
-    leave_details = getattr(instance, 'leave_details', {}) or {}
-    frontend_url = "http://192.168.4.183:5173/edit-leave-request"
-    leave_id = leave_details.get('id', instance.id)
-    update_link = f"{frontend_url}/{leave_id}"
-
-    subject = f"{instance.leave_type} Request - {employee.name}"
-    message = (
-        f"Dear {receiver_name},\n\n"
-        f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
-        f"has submitted a leave request.\n\n"
-        f"Leave Type: {instance.leave_type}\n"
-        f"Duration: {instance.start_date} to {instance.end_date}\n"
-        f"Leave Days: {instance.leave_days}\n"
-        f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
-        f"Reason: {instance.reason or 'N/A'}\n"
-        f"Substituting Person: {instance.sub_person or 'N/A'}\n"
-        f"Contact: {instance.personal_phone or 'N/A'}\n\n"
-        f"Click the link below to update the leave request:\n{update_link}\n\n"
-        f"Best Regards,\n"
-        f"HR Leave System"
-    )
-
-    email = EmailMessage(
-        subject=subject,
-        body=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[instance.to]
-    )
-
-    try:
-        email_sent = email.send(fail_silently=False)
-        if email_sent:
-            logger.info(f"Leave request email sent successfully to {instance.to}")
-
-            EmailLog.objects.create(
-                recipient=instance.to,
-                subject=subject,
-                message=message
-            )
-
-            Notification.objects.create(
-                employee=employee,
-                message=f"Your leave request ({instance.leave_type}) has been sent to {instance.to}."
-            )
-        else:
-            logger.error("Email sending failed but no exception was raised.")
-    except Exception as e:
-        logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
-        raise ValidationError(f"Error sending email: {str(e)}")
-
-
-@receiver(post_save, sender=EmployeeLeave)
-def send_leave_email(sender, instance, **kwargs):
-    # Send email for both creation and update
-    if not instance.to:
-        logger.warning(f"No recipient email provided for leave ID {instance.id}. Email not sent.")
+    # Validate sender email
+    if not instance.email:
+        logger.warning(f"No sender email provided for employee {instance.employee.name}")
         return
 
-    employee = instance.employee
-    receiver_name = instance.receiver_name or "HR"
-
-    # Prepare update link
-    frontend_url = "http://192.168.4.183:5173/edit-leave-request"
-    leave_id = instance.id
-    update_link = f"{frontend_url}/{leave_id}"
-
-    subject = f"{instance.leave_type} Request - {employee.name}"
-    message = (
-        f"Dear {receiver_name},\n\n"
-        f"{employee.name} ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) "
-        f"has submitted a leave request.\n\n"
-        f"Leave Type: {instance.leave_type}\n"
-        f"Duration: {instance.start_date} to {instance.end_date}\n"
-        f"Leave Days: {instance.leave_days}\n"
-        f"Status: {instance.status.title() if instance.status else 'Pending'}\n"
-        f"Reason: {instance.reason or 'N/A'}\n"
-        f"Substituting Person: {instance.sub_person or 'N/A'}\n"
-        f"Contact: {instance.personal_phone or 'N/A'}\n\n"
-        f"Click the link below to update the leave request:\n{update_link}\n\n"
-        f"Best Regards,\n"
-        f"HR Leave System"
-    )
-
-    email = EmailMessage(
-        subject=subject,
-        body=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[instance.to]
-    )
+    # Prepare email content
+    subject = f"{instance.get_leave_type_display()} Request - {instance.employee.name}"
+    
+    # Create a more professional HTML email
+    message = f"""
+    <html>
+    <body>
+        <p>Dear {instance.receiver_name or 'HR Team'},</p>
+        
+        <p><strong>{instance.employee.name}</strong> ({instance.designation or 'N/A'} - {instance.department or 'N/A'}) 
+        has submitted a leave request with the following details:</p>
+        
+        <table border="0" cellpadding="5">
+            <tr><td><strong>Leave Type:</strong></td><td>{instance.get_leave_type_display()}</td></tr>
+            <tr><td><strong>Duration:</strong></td><td>{instance.start_date} to {instance.end_date}</td></tr>
+            <tr><td><strong>Leave Days:</strong></td><td>{instance.leave_days}</td></tr>
+            <tr><td><strong>Status:</strong></td><td>{instance.get_status_display()}</td></tr>
+            <tr><td><strong>Reason:</strong></td><td>{instance.reason or 'Not specified'}</td></tr>
+            <tr><td><strong>Substitute:</strong></td><td>{instance.sub_person or 'Not assigned'}</td></tr>
+            <tr><td><strong>Contact:</strong></td><td>{instance.personal_phone or 'Not provided'}</td></tr>
+        </table>
+        
+        <p>You can review this request by clicking the link below:</p>
+        <p><a href="http://192.168.4.183:5173/edit-leave-request/{instance.id}">View Leave Request</a></p>
+        
+        <p>Best Regards,<br>
+        HR Management System</p>
+    </body>
+    </html>
+    """
 
     try:
+        email = EmailMessage(
+            subject=subject,
+            body=message,
+            from_email=instance.email,  # Send from employee's email
+            to=[instance.to],           # Send to specified recipient
+            reply_to=[instance.email]   # Replies go back to employee
+        )
+        email.content_subtype = "html"  # Set content as HTML
+        
+        # Add CC to HR if needed
+        # email.cc = ['hr@company.com']
+        
         email_sent = email.send(fail_silently=False)
+        
         if email_sent:
-            logger.info(f"Leave request email sent successfully to {instance.to}")
+            logger.info(f"Email sent successfully from {instance.email} to {instance.to}")
         else:
-            logger.error("Email sending failed but no exception was raised.")
+            logger.error(f"Email sending failed for leave ID {instance.id}")
+            
     except Exception as e:
-        logger.error(f"Error sending leave email to {instance.to}: {str(e)}")
-
+        logger.error(f"Error sending email for leave ID {instance.id}: {str(e)}")
