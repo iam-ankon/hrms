@@ -19,3 +19,13 @@ class EmployeeDetailsConfig(AppConfig):
                 EmployeeDetails.send_birthday_wishes()
             except Exception as e:
                 logger.error(f"❌ Error sending birthday emails on startup: {e}", exc_info=True)
+
+
+
+
+# from django.apps import AppConfig
+
+
+# class EmployeeDetailsConfig(AppConfig):
+#     default_auto_field = 'django.db.models.BigAutoField'
+#     name = 'employee_details'

@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'employee_details',
+    'merchandiser',
 ]
 
 MIDDLEWARE = [

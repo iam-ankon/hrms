@@ -23,6 +23,13 @@ class EmployeeDetailsViewSet(viewsets.ModelViewSet):
     queryset = EmployeeDetails.objects.all()
     serializer_class = EmployeeDetailsSerializer
 
+    @action(detail=True, methods=['patch'])
+    def update_customers(self, request, pk=None):
+        employee = self.get_object()
+        customer_ids = request.data.get('customers', [])
+        employee.customer.set(customer_ids)
+        return Response({'status': 'customers updated'})
+
 class EmployeeTerminationViewSet(viewsets.ModelViewSet):
     queryset = EmployeeTermination.objects.all()
     serializer_class = EmployeeTerminationSerializer
@@ -38,6 +45,10 @@ class PerformanseAppraisalViewSet(viewsets.ModelViewSet):
 class TADGroupsViewSet(viewsets.ModelViewSet):
     queryset = TADGroups.objects.all()
     serializer_class = TADGroupsSerializer
+
+class CustomersViewSet(viewsets.ModelViewSet):
+    queryset = Customers.objects.all()
+    serializer_class = CustomersSerializer    
 
 # Notifications ViewSet
 class NotificationViewSet(viewsets.ModelViewSet):

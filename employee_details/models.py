@@ -41,7 +41,15 @@ class TADGroups(models.Model):
         return self.company_name
 
 
+class Customers(models.Model):
+    customer_name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.customer_name
+
 # Employee Details Model
+
+
 class EmployeeDetails(models.Model):
     employee_id = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=255)
@@ -67,8 +75,16 @@ class EmployeeDetails(models.Model):
     reporting_leader = models.CharField(max_length=255, blank=True, null=True)
     special_skills = models.TextField(blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
-    image1 = models.ImageField(upload_to="employee_images/", blank=True, null=True)
+    image1 = models.ImageField(
+        upload_to="employee_images/", blank=True, null=True)
     permanent_address = models.TextField(blank=True, null=True)
+
+    # Changed to ManyToManyField
+    customer = models.ManyToManyField(
+        Customers,
+        related_name="employees",
+        blank=True
+    )
 
     def __str__(self):
         return self.name
@@ -79,7 +95,7 @@ class EmployeeDetails(models.Model):
             logger.info("🎉 Checking for today's birthdays...")
             today = timezone.now().date()
 
-            # Get employees with birthdays today
+            # Get all employees with birthdays today
             birthday_employees = cls.objects.filter(
                 date_of_birth__day=today.day,
                 date_of_birth__month=today.month
@@ -112,16 +128,20 @@ class EmployeeDetails(models.Model):
     {company_name}
     """
 
-            # Track all sent emails to prevent duplicates
-            all_sent_emails = set()
+            # Track who we've emailed in this run
+            sent_birthday_emails = set()
+            notified = False
 
-            # Send birthday wishes
+            birthday_names = []
+
             for emp in birthday_employees:
+                if emp.email in sent_birthday_emails:
+                    logger.warning(
+                        f"⚠️ Already wished {emp.email}, skipping...")
+                    continue
+
                 try:
-                    if emp.email in all_sent_emails:
-                        logger.warning(f"⚠️ Already sent email to {emp.email}, skipping")
-                        continue
-                        
+                    # Send birthday email
                     send_mail(
                         subject=f"Happy Birthday, {emp.name}!",
                         message=birthday_template.format(
@@ -132,47 +152,48 @@ class EmployeeDetails(models.Model):
                         recipient_list=[emp.email],
                         fail_silently=False,
                     )
-                    all_sent_emails.add(emp.email)
-                    logger.info(f"🎂 Sent birthday email to {emp.name}")
+                    sent_birthday_emails.add(emp.email)
+                    birthday_names.append(
+                        f"🎉 {emp.name} ({emp.designation}) - mailto:{emp.email}")
+                    logger.info(f"🎂 Sent birthday wish to {emp.name}")
                 except Exception as e:
-                    logger.error(f"❌ Could not send birthday email to {emp.name}: {e}")
+                    logger.error(
+                        f"❌ Could not send birthday email to {emp.name}: {e}")
 
-            # Prepare notification list (exclude all already sent emails)
-            birthday_names = "\n".join(
-                [f"🎉 {emp.name} ({emp.designation})" for emp in birthday_employees]
-            )
-
-            # Get all other employees excluding birthday people and already notified
-            other_emails = cls.objects.exclude(
-                email__in=all_sent_emails
-            ).exclude(
-                email__isnull=True
-            ).exclude(
-                email__exact=""
-            ).values_list("email", flat=True).distinct()
-
-            notify_emails = list(other_emails)
-
-            if notify_emails:
+            # Only notify once if there were birthday emails successfully sent
+            if birthday_names and not notified:
                 try:
-                    send_mail(
-                        subject="🎉 Team Birthday Announcement",
-                        message=notify_template.format(
-                            birthday_list=birthday_names,
-                            company_name=company_name
-                        ),
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=notify_emails,
-                        fail_silently=False,
-                    )
-                    logger.info(f"✅ Sent notification to {len(notify_emails)} employees.")
+                    notify_emails = cls.objects.exclude(
+                        email__in=sent_birthday_emails
+                    ).exclude(
+                        email__isnull=True
+                    ).exclude(
+                        email__exact=""
+                    ).values_list("email", flat=True).distinct()
+
+                    if notify_emails:
+                        send_mail(
+                            subject="🎉 Team Birthday Announcement",
+                            message=notify_template.format(
+                                birthday_list="\n".join(birthday_names),
+                                company_name=company_name
+                            ),
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            recipient_list=list(notify_emails),
+                            fail_silently=False,
+                        )
+                        logger.info(
+                            f"✅ Notified {len(notify_emails)} team members.")
+                        notified = True
                 except Exception as e:
-                    logger.error(f"❌ Failed to send notification: {e}")
+                    logger.error(
+                        f"❌ Failed to send team birthday notification: {e}")
 
             logger.info("✅ Birthday email process complete.")
 
         except Exception as e:
-            logger.error(f"❌ Unhandled error in birthday wish method: {e}", exc_info=True)
+            logger.error(
+                f"❌ Unhandled error in birthday wish method: {e}", exc_info=True)
 
     def save(self, *args, **kwargs):
         if self.image1 and self.image1.name.lower().endswith(".heic"):
@@ -183,7 +204,8 @@ class EmployeeDetails(models.Model):
             buffer = BytesIO()
             image.save(buffer, format="JPEG")
             file_name = os.path.splitext(self.image1.name)[0] + ".jpg"
-            self.image1.save(file_name, ContentFile(buffer.getvalue()), save=False)
+            self.image1.save(file_name, ContentFile(
+                buffer.getvalue()), save=False)
         super().save(*args, **kwargs)
 
 
@@ -942,3 +964,27 @@ def send_leave_email(sender, instance, created, **kwargs):
     except Exception as e:
         logger.error(
             f"Error sending email for leave ID {instance.id}: {str(e)}")
+
+
+@receiver(post_save, sender=EmployeeDetails)
+def notify_employees_on_new_entry(sender, instance, created, **kwargs):
+    if created:
+        # Exclude the newly added employee
+        other_emails = EmployeeDetails.objects.exclude(
+            pk=instance.pk).values_list('email', flat=True)
+
+        subject = f"New Employee Joined: {instance.name}"
+        message = (
+            f"Please welcome {instance.name} who joined as {instance.designation} in the {instance.department} department.\n"
+            f"Joining Date: {instance.joining_date.strftime('%Y-%m-%d')}\n"
+            f"Email: {instance.email}\n"
+            f"Phone: {instance.personal_phone or 'N/A'}"
+        )
+
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            list(other_emails),
+            fail_silently=False,
+        )

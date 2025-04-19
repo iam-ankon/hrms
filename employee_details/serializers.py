@@ -6,20 +6,32 @@ from .models import *
 # Modify EmployeeDetailsSerializer in serializers.py
 class EmployeeDetailsSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.company_name', read_only=True)
+    # Remove customer_name as it's a ManyToMany and would be complex to represent as a single char field
+
+    customer = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Customers.objects.all(),
+        required=False  # Adjust as needed
+    )
 
     class Meta:
         model = EmployeeDetails
         fields = '__all__'
 
+    def create(self, validated_data):
+        customers_data = validated_data.pop('customer', [])
+        employee = EmployeeDetails.objects.create(**validated_data)
+        employee.customer.set(customers_data)
+        return employee
+
     def update(self, instance, validated_data):
+        customers_data = validated_data.pop('customer', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        if customers_data is not None:
+            instance.customer.set(customers_data)
         return instance
-
-    def create(self, validated_data):
-        return EmployeeDetails.objects.create(**validated_data)
-
 
 class PerformanseAppraisalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -145,3 +157,7 @@ class InviteMailSerializer(serializers.ModelSerializer):
         model = InviteMail
         fields = '__all__'
 
+class CustomersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customers
+        fields = '__all__'
