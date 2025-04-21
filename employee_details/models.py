@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from django.core.mail import EmailMessage, send_mail
+from django.core.mail import EmailMessage, send_mail,EmailMultiAlternatives
 from django.conf import settings
 import mimetypes
 from datetime import time
@@ -376,7 +376,10 @@ class EmployeeLeave(models.Model):
 
     employee = models.ForeignKey(EmployeeDetails, on_delete=models.CASCADE)
     email = models.EmailField(blank=True, null=True)
+    from_email = models.EmailField(blank=True, null=True)
     to = models.EmailField(blank=True, null=True)
+    to_email = models.EmailField(blank=True, null=True)
+    cc = models.EmailField(blank=True, null=True)
     receiver_name = models.CharField(max_length=255, blank=True, null=True)
     employee_code = models.CharField(max_length=20, blank=True, null=True)
     designation = models.CharField(max_length=255, blank=True, null=True)
@@ -388,6 +391,9 @@ class EmployeeLeave(models.Model):
     personal_phone = models.CharField(max_length=20, blank=True, null=True)
     sub_person = models.CharField(max_length=255, blank=True, null=True)
     date = models.DateField(blank=True, null=True)
+    whereabouts = models.TextField(max_length=255, blank=True, null=True)
+    teamleader = models.TextField(max_length=255, blank=True, null=True)
+    hrcomment = models.TextField(max_length=255, blank=True, null=True)
     leave_days = models.IntegerField(default=0)
     comment = models.TextField(blank=True, null=True)
     leave_type = models.CharField(
@@ -446,6 +452,87 @@ class EmployeeLeave(models.Model):
 
         # Save the updated balance
         leave_balance.save()
+
+    def save(self, *args, **kwargs):
+        # First save the model
+        super().save(*args, **kwargs)
+        
+        # Then send email if required fields are present
+        if self.from_email and self.to_email:
+            self.send_leave_email()
+
+    def send_leave_email(self):  # changed from instance to self
+        subject = f"Leave Application - {self.employee.name}"
+
+        message = f"""
+        <html>
+        <body>
+            <p>Dear {'Laila' or 'HR Team'},</p>
+            
+            <p><strong>{self.employee.name}</strong> ({self.designation or 'N/A'} - {self.department or 'N/A'}) 
+            has submitted a leave request with the following details:</p>
+            
+            <table border="0" cellpadding="5">
+                <tr><td><strong>Leave Type:</strong></td><td>{self.get_leave_type_display()}</td></tr>
+                <tr><td><strong>Duration:</strong></td><td>{self.start_date} to {self.end_date}</td></tr>
+                <tr><td><strong>Leave Days:</strong></td><td>{self.leave_days}</td></tr>
+                <tr><td><strong>Status:</strong></td><td>{self.get_status_display()}</td></tr>
+                <tr><td><strong>Reason:</strong></td><td>{self.reason or 'Not specified'}</td></tr>
+                <tr><td><strong>Substitute:</strong></td><td>{self.sub_person or 'Not assigned'}</td></tr>
+                <tr><td><strong>Contact:</strong></td><td>{self.personal_phone or 'Not provided'}</td></tr>
+            </table>
+            
+            <p>You can review this request by clicking the link below:</p>
+            <p><a href="http://192.168.4.183:5173/edit-leave-request/{self.id}">View Leave Request</a></p>
+            
+            <p>Best Regards,<br>
+            HR Management System</p>
+        </body>
+        </html>
+        """
+
+        recipient_list = [self.to_email]
+        cc_list = [from_email.strip() for from_email in self.cc.split(',')] if self.cc else []
+
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=message.strip(),  # you can also use plain text here if needed
+            from_email=self.from_email,
+            to=recipient_list,
+            cc=cc_list,
+        )
+        email.content_subtype = "html"  # tells Django to treat the body as HTML
+        email.send(fail_silently=False)
+
+
+    # def send_leave_email(self):
+    #     subject = f"Leave Application - {self.employee.name}"
+        
+    #     lines = [
+    #         "Leave Application Details",
+    #         "",
+    #         f"Employee Name: {self.employee.name}",
+    #         f"Leave Type: {self.get_leave_type_display()}",
+    #         f"Start Date: {self.start_date}",
+    #         f"End Date: {self.end_date}",
+    #         f"Number of Days: {self.leave_days}",
+    #         f"Reason: {self.reason}",
+    #         f"Status: {self.get_status_display()}",
+    #     ]
+        
+    #     if self.sub_person:
+    #         lines.append(f"Substitute Person: {self.sub_person}")
+        
+    #     lines.extend(["", "This is an automated email. Please do not reply directly."])
+        
+    #     send_mail(
+    #         subject=subject,
+    #         message="\n".join(lines),
+    #         from_email=self.from_email,
+    #         recipient_list=[self.to_email],
+    #         fail_silently=False,
+    #     )        
+
 
 
 class EmployeeAttachment(models.Model):
@@ -889,24 +976,23 @@ def send_invitation_email(sender, instance, **kwargs):
         )
 
 
+
+
 @receiver(post_save, sender=EmployeeLeave)
 def send_leave_email(sender, instance, created, **kwargs):
     """
-    Send email notification when a leave request is created or updated.
-    Email is sent from the employee's email (instance.email) to the recipient (instance.to)
+    Send email notification when:
+    - A new leave request is created, or
+    - The status changes during an update
     """
-    # Validate recipient email
-    if not instance.to:
-        logger.warning(
-            f"No recipient email provided for leave ID {instance.id}")
-        return
-
-    # Validate sender email
-    if not instance.email:
-        logger.warning(
-            f"No sender email provided for employee {instance.employee.name}"
-        )
-        return
+    # Check if this is an update (not creation)
+    if not created:
+        # Get the original instance before update
+        original = EmployeeLeave.objects.get(pk=instance.pk)
+        
+        # Only send email if status changed
+        if original.status == instance.status:
+            return
 
     # Prepare email content
     subject = f"{instance.get_leave_type_display()} Request - {instance.employee.name}"
