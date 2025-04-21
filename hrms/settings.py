@@ -180,8 +180,12 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER  # Sender address
 # EMAIL_HOST_USER = 'ar7web47@gmail.com'
 # EMAIL_HOST_PASSWORD = 'raaf gocq iirk pmaa'
 # DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-
+# REST_FRAMEWORK = {
+#     'DEFAULT_RENDERER_CLASSES': (
+#         'rest_framework.renderers.JSONRenderer',
+#         'rest_framework.renderers.BrowsableAPIRenderer',
+#     ),
+# }
 
 # EMAIL_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
