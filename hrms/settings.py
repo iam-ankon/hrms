@@ -23,7 +23,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-
+# WhiteNoise static files storage
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -58,6 +59,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -69,10 +71,10 @@ ROOT_URLCONF = 'hrms.urls'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Your React app's address
-    "http://192.168.4.183:5173", 
+    "http://192.168.4.54:5173", 
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "http://192.168.4.183:5173",
+    "http://192.168.4.54:5173",
     "http://localhost:5173",
 ]
 CORS_ALLOW_CREDENTIALS = True  # Allow cookies to be sent with the request
@@ -157,7 +159,7 @@ USE_I18N = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
