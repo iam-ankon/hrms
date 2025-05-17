@@ -1,39 +1,53 @@
-from rest_framework import generics
+from rest_framework import viewsets
 from .models import *
 from .serializers import *
 
 # Customer Views
-class CustomerListCreateView(generics.ListCreateAPIView):
-    queryset = Customer.objects.all()
-    serializer_class = CustomerSerializer
-
-class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
 
 # Agent Views
-class AgentListCreateView(generics.ListCreateAPIView):
-    queryset = Agent.objects.all()
-    serializer_class = AgentSerializer
-
-class AgentRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+class AgentViewSet(viewsets.ModelViewSet):
     queryset = Agent.objects.all()
     serializer_class = AgentSerializer
 
 # Supplier Views
-class SupplierListCreateView(generics.ListCreateAPIView):
-    queryset = Supplier.objects.all()
-    serializer_class = SupplierSerializer
-
-class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+class SupplierViewSet(viewsets.ModelViewSet):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
 
 # Buyer Views
-class BuyerListCreateView(generics.ListCreateAPIView):
+class BuyerViewSet(viewsets.ModelViewSet):
     queryset = Buyer.objects.all()
     serializer_class = BuyerSerializer
 
-class BuyerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Buyer.objects.all()
-    serializer_class = BuyerSerializer    
+# Inquiry Views   
+class InquiryViewSet(viewsets.ModelViewSet):
+    queryset = Inquiry.objects.all()
+    serializer_class = InquirySerializer
+
+
+class StyleViewSet(viewsets.ModelViewSet):
+    queryset = Style.objects.all()
+    serializer_class = StyleSerializer
+
+class RepeatOfViewSet(viewsets.ModelViewSet):
+    queryset = RepeatOf.objects.all()
+    serializer_class = RepeatOfSerializer  
+
+class ItemViewSet(viewsets.ModelViewSet):
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+
+class FabricationViewSet(viewsets.ModelViewSet):
+    queryset = Fabrication.objects.all()
+    serializer_class = FabricationSerializer
+
+class SizeRangeViewSet(viewsets.ModelViewSet):
+    queryset = SizeRange.objects.all()
+    serializer_class = SizeRangeSerializer      
+
+class TotalAccessoriesViewSet(viewsets.ModelViewSet):
+    queryset = TotalAccessories.objects.all()
+    serializer_class = TotalAccessoriesSerializer       

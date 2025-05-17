@@ -454,12 +454,15 @@ class EmployeeLeave(models.Model):
         leave_balance.save()
 
     def save(self, *args, **kwargs):
-        # First save the model
+        is_new = self.pk is None
         super().save(*args, **kwargs)
-        
-        # Then send email if required fields are present
+
+        if self.status == "approved":
+            self.deduct_leave_balance()
+
         if self.from_email and self.to_email:
             self.send_leave_email()
+
 
     def send_leave_email(self):  # changed from instance to self
         subject = f"Leave Application - {self.employee.name}"
@@ -483,7 +486,7 @@ class EmployeeLeave(models.Model):
             </table>
             
             <p>You can review this request by clicking the link below:</p>
-            <p><a href="http://192.168.4.183:5173/edit-leave-request/{self.id}">View Leave Request</a></p>
+            <p><a href="http://localhost:5173/edit-leave-request/{self.id}">View Leave Request</a></p>
             
             <p>Best Regards,<br>
             HR Management System</p>
@@ -504,34 +507,6 @@ class EmployeeLeave(models.Model):
         email.content_subtype = "html"  # tells Django to treat the body as HTML
         email.send(fail_silently=False)
 
-
-    # def send_leave_email(self):
-    #     subject = f"Leave Application - {self.employee.name}"
-        
-    #     lines = [
-    #         "Leave Application Details",
-    #         "",
-    #         f"Employee Name: {self.employee.name}",
-    #         f"Leave Type: {self.get_leave_type_display()}",
-    #         f"Start Date: {self.start_date}",
-    #         f"End Date: {self.end_date}",
-    #         f"Number of Days: {self.leave_days}",
-    #         f"Reason: {self.reason}",
-    #         f"Status: {self.get_status_display()}",
-    #     ]
-        
-    #     if self.sub_person:
-    #         lines.append(f"Substitute Person: {self.sub_person}")
-        
-    #     lines.extend(["", "This is an automated email. Please do not reply directly."])
-        
-    #     send_mail(
-    #         subject=subject,
-    #         message="\n".join(lines),
-    #         from_email=self.from_email,
-    #         recipient_list=[self.to_email],
-    #         fail_silently=False,
-    #     )        
 
 
 
@@ -561,7 +536,7 @@ class Notification(models.Model):
 class Interview(models.Model):
     name = models.CharField(max_length=255)
     position_for = models.CharField(max_length=255, blank=True, null=True)
-    age = models.IntegerField(blank=True, null=True)
+    age = models.DateField(blank=True, null=True)
     reference = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=20, unique=True, blank=True, null=True)
@@ -592,6 +567,7 @@ class Interview(models.Model):
 
 
 # Letter Send Model
+
 class LetterSend(models.Model):
     OFFER_LETTER = "Offer Letter"
     APPOINTMENT_LETTER = "Appointment Letter"
@@ -602,6 +578,7 @@ class LetterSend(models.Model):
         ("appointment_letter", "Appointment Letter"),
         ("joining_report", "Joining Report"),
     ]
+
     name = models.CharField(max_length=255)
     email = models.EmailField()
     letter_file = models.FileField(upload_to="cv_letters/")
@@ -614,7 +591,7 @@ class LetterSend(models.Model):
 class CVAdd(models.Model):
     name = models.CharField(max_length=255)
     position_for = models.CharField(max_length=255, blank=True, null=True)
-    age = models.IntegerField(blank=True, null=True)
+    age = models.DateField(blank=True, null=True)
     reference = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(unique=True, blank=True, null=True)
     phone = models.CharField(max_length=20, unique=True, blank=True, null=True)
@@ -673,12 +650,18 @@ class InviteMail(models.Model):
 
 
 @receiver(post_save, sender=LetterSend)
-def send_cv_email(sender, instance, **kwargs):
-    logger.info(f"Handling CV email for {instance.name}")
-    subject = f"{instance.letter_type} for {instance.name}"
-    message = f"Dear {instance.name},\n\nPlease find your {instance.letter_type} attached.\n\nBest Regards,\nHR Team"
+def send_cv_email(sender, instance, created, **kwargs):
+    if not created:
+        return  # Send email only on creation
 
-    # Create an EmailMessage instance
+    logger.info(f"Handling CV email for {instance.name}")
+
+    # Mapping display name for letter type
+    letter_display = dict(LetterSend.LETTER_CHOICES).get(instance.letter_type, instance.letter_type)
+    subject = f"{letter_display} for {instance.name}"
+    message = f"Dear {instance.name},\n\nPlease find your {letter_display} attached.\n\nBest Regards,\nHR Team"
+
+    # Prepare email
     email = EmailMessage(
         subject=subject,
         body=message,
@@ -686,59 +669,48 @@ def send_cv_email(sender, instance, **kwargs):
         to=[instance.email],
     )
 
-    # Check if the file is provided and attach it
+    # Attach letter file
     if instance.letter_file:
         try:
-            # Log the file path
-            logger.info(f"Attaching file from {instance.letter_file.path}")
-
-            # Get the MIME type (content type) based on the file extension
-            mime_type, encoding = mimetypes.guess_type(
-                instance.letter_file.name)
+            mime_type, encoding = mimetypes.guess_type(instance.letter_file.name)
             if mime_type is None:
-                mime_type = (
-                    "application/octet-stream"  # Fallback to a generic MIME type
-                )
+                mime_type = "application/octet-stream"
 
-            # Read the file as binary
             with instance.letter_file.open("rb") as file:
                 email.attach(instance.letter_file.name, file.read(), mime_type)
 
-            logger.info(
-                f"Successfully attached file: {instance.letter_file.name}")
+            logger.info(f"Attached file: {instance.letter_file.name}")
         except Exception as e:
-            logger.error(
-                f"Error attaching file {instance.letter_file.name}: {str(e)}")
+            logger.error(f"Error attaching file: {str(e)}")
             raise ValidationError(f"Error attaching file: {str(e)}")
 
-    # Send the email
+    # Send email
     try:
-        email_sent = email.send(
-            fail_silently=False
-        )  # Set fail_silently=False for debugging
+        email_sent = email.send(fail_silently=False)
         if email_sent:
             logger.info(f"Email sent successfully to {instance.email}")
 
             # Log the email
             EmailLog.objects.create(
-                recipient=instance.email, subject=subject, message=message
+                recipient=instance.email,
+                subject=subject,
+                message=message
             )
 
-            # Create a notification for sending the email
+            # Create notification for the employee
             try:
                 employee = EmployeeDetails.objects.get(email=instance.email)
                 Notification.objects.create(
                     employee=employee,
-                    message=f"Email sent to {instance.name} regarding {instance.letter_type}.",
+                    message=f"Email sent to {instance.name} regarding {letter_display}.",
                 )
             except EmployeeDetails.DoesNotExist:
-                logger.error(
-                    f"Employee with email {instance.email} not found for notification creation."
-                )
+                logger.warning(f"No employee found with email {instance.email}. Notification not created.")
         else:
-            logger.error("Email sending failed, but no exception was raised.")
+            logger.error("Email send function returned False without exception.")
     except Exception as e:
-        logger.error(f"Error sending email: {str(e)}")
+        logger.error(f"Failed to send email to {instance.email}: {str(e)}")
+        raise ValidationError(f"Failed to send email: {str(e)}")
 
 
 # Auto-generate notification and send email when attendance_delay is True

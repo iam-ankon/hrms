@@ -13,11 +13,26 @@ class AgentAdmin(admin.ModelAdmin):
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'phone')
-    search_fields = ('name', 'email', 'phone')
+    list_display = ('name', 'email','company_phone')
+    search_fields = ('name', 'email', 'company_phone')
 
 @admin.register(Buyer)
 class BuyerAdmin(admin.ModelAdmin):
     list_display = ('name', 'email', 'phone', 'department', 'wgr')
     search_fields = ('name', 'email', 'phone', 'department')
     list_filter = ('department',)
+
+admin.site.register(Inquiry)
+
+admin.site.register(Style)
+
+admin.site.register(RepeatOf)
+
+admin.site.register(Item)
+
+admin.site.register(Fabrication)
+
+admin.site.register(SizeRange)
+
+admin.site.register(TotalAccessories)
+
