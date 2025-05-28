@@ -11,12 +11,18 @@ router.register('style', StyleViewSet)
 router.register('repeat_of', RepeatOfViewSet)
 router.register('item', ItemViewSet)
 router.register('fabrication', FabricationViewSet)
-router.register('size_range', SizeRangeViewSet)
-router.register('total_accessories', TotalAccessoriesViewSet)
 router.register('inquiry', InquiryViewSet)
+router.register('color', ColorViewSet)
+router.register('color_total', ColorTotalViewSet)
+router.register('color_size_group', ColorSizeGroupViewSet)
+router.register('size_quantity', SizeQuantityViewSet)
+router.register('inquiry_attachment', InquiryAttachmentViewSet)
 
 
 urlpatterns = [
     path('api/', include(router.urls)),
 
 ]
+
+
+

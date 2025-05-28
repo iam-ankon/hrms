@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
 
 
 class Buyer(models.Model):
@@ -382,33 +384,52 @@ class Fabrication(models.Model):
         return self.fabrication
 
 
-class SizeRange(models.Model):
-    size_range = models.CharField(max_length=100, blank=True, null=True)
+class ColorTotal(models.Model):
+    total_color = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
-        return self.size_range
+        return self.total_color
 
 
-class TotalAccessories(models.Model):
-    total_accessories = models.CharField(max_length=100, blank=True, null=True)
-    total_accessories_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-
+class Color(models.Model):
+    color = models.CharField(max_length=100, blank=True, null=True)
+    
     def __str__(self):
-        return self.total_accessories
+        return self.color
 
 
-class Year(models.Model):
-    year = models.CharField(max_length=100, blank=True,null=True)
-
+class SizeQuantity(models.Model):
+    size = models.CharField(max_length=20, blank=True, null=True)
+    quantity = models.PositiveIntegerField(default=0, blank=True, null=True)
+    
     def __str__(self):
-        return self.year
+        return f"{self.size}: {self.quantity}"
 
+
+class ColorSizeGroup(models.Model):
+    color = models.ForeignKey(Color, on_delete=models.CASCADE, blank=True, null=True)
+    size_quantities = models.ManyToManyField(SizeQuantity, blank=True)
+    total = models.PositiveIntegerField(default=0, blank=True, null=True)
+        
+    def __str__(self):
+        return f"{self.color} - Total: {self.total}"
+
+@receiver(m2m_changed, sender=ColorSizeGroup.size_quantities.through)
+def update_color_size_group_total(sender, instance, action, **kwargs):
+    if action in ("post_add", "post_remove", "post_clear"):
+        instance.total = sum(sq.quantity for sq in instance.size_quantities.all()) if instance.size_quantities.exists() else 0
+        instance.save(update_fields=['total'])
+    
 
 class Inquiry(models.Model):
     ORDER_TYPE_CHOICES = [
         ('advertisement', 'Advertisement'),
         ('programmer', 'Programmer'),
+    ]
+
+    WITH_HANGER = [
+        ('yes', 'Yes'),
+        ('no', 'No'),
     ]
 
     GENDER_CHOICES = [
@@ -436,6 +457,7 @@ class Inquiry(models.Model):
         ('sweater', 'Sweater'),
 
     ]
+    
     SEASON_CHOICES = [
         ('spring', 'Spring'),
         ('summer', 'Summer'),
@@ -447,16 +469,16 @@ class Inquiry(models.Model):
     inquiry_no = models.IntegerField(blank=True, null=True)
     season = models.CharField(
         max_length=20, choices=SEASON_CHOICES, blank=True, null=True)
-    year = models.ForeignKey(Year, on_delete=models.CASCADE, blank=True, null=True)
+    year = models.DateField(blank=True, null=True)
     repeat_of = models.ForeignKey(
-        RepeatOf, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+        RepeatOf, on_delete=models.SET_NULL, null=True, blank=True)
     same_style = models.ForeignKey(
-        Style, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+        Style, on_delete=models.SET_NULL, null=True, blank=True)
     buyer = models.ForeignKey(
-        Buyer, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+        Buyer, on_delete=models.SET_NULL, null=True, blank=True)
     shipment_date = models.DateField(blank=True,null=True)
     wgr = models.IntegerField(verbose_name="W.G.R", blank=True, null=True)
-    with_hanger = models.BooleanField(blank=True,null=True)
+    with_hanger = models.CharField(max_length=3, choices=WITH_HANGER, blank=True, null=True)
     program = models.CharField(max_length=100,blank=True,null=True)
     order_type = models.CharField(
         max_length=20, choices=ORDER_TYPE_CHOICES, blank=True, null=True)
@@ -465,40 +487,20 @@ class Inquiry(models.Model):
     gender = models.CharField(
         max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
     item = models.ForeignKey(
-        Item, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+        Item, on_delete=models.SET_NULL, null=True, blank=True)
     fabric1 = models.TextField(blank=True, null=True)
     fabric2 = models.TextField(blank=True, null=True)
     fabric3 = models.TextField(blank=True, null=True)
     fabric4 = models.TextField(blank=True, null=True)
-    size_range = models.ForeignKey(
-        SizeRange, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+    fabrication = models.ForeignKey(
+        Fabrication, on_delete=models.SET_NULL, null=True, blank=True)
     received_date = models.DateField(blank=True, null=True)
     image = models.ImageField(upload_to='inquiries/', blank=True, null=True)
     image1 = models.ImageField(upload_to='inquiries/', blank=True, null=True)
     proposed_shipment_date = models.DateField(blank=True, null=True)
-    commission = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    fabric_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    fabric_consumption = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    printing_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    washing_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    other_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    cm_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    fub_pace = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    fub_in_dz = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    total_accessories_price = models.ForeignKey(
-        TotalAccessories, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
     customer = models.ForeignKey(
-        Customer, on_delete=models.CASCADE, related_name="inquiries", blank=True, null=True)
+        Customer,  on_delete=models.SET_NULL, null=True, blank=True)
     local_remarks = models.TextField(blank=True, null=True)
     buyer_remarks = models.TextField(blank=True, null=True)
     wash_description = models.TextField(blank=True, null=True)
@@ -510,16 +512,55 @@ class Inquiry(models.Model):
     confirmed_price_date = models.DateField(blank=True, null=True)
     attachment = models.FileField(
         upload_to='inquiries/attachments/', blank=True, null=True)
-
     current_status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='pending', blank=True, null=True)
-    color = models.CharField(max_length=100, blank=True, null=True)
-    color_total = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
-    order_no = models.IntegerField(blank=True, null=True)
-    order_qty = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True)
     order_remarks = models.TextField(blank=True, null=True)
+    color_size_groups = models.ManyToManyField(ColorSizeGroup, blank=True)
+    grand_total = models.PositiveIntegerField(default=0,blank=True, null=True)
+    order_no = models.CharField(max_length=100, blank=True, null=True)
+    order_quantity = models.PositiveIntegerField(default=0, blank=True, null=True)
 
     def __str__(self):
         return f"{self.item} - {self.order_type}"
+    
+    def save(self, *args, **kwargs):
+        # First save the Inquiry instance to get an ID
+        super().save(*args, **kwargs)
+        
+        # Now we can safely work with the many-to-many relationships
+        # Calculate grand_total only if color_size_groups exists
+        if hasattr(self, 'color_size_groups'):
+            self.grand_total = sum(group.total for group in self.color_size_groups.all()) if self.color_size_groups.exists() else 0
+            # Save again to update the grand_total, but avoid infinite recursion
+            super().save(update_fields=['grand_total'])
+
+    def save(self, *args, **kwargs):
+        # First save the Inquiry instance to get an ID
+        super().save(*args, **kwargs)
+        
+        # Handle color_size_groups grand total calculation
+        if hasattr(self, 'color_size_groups'):
+            self.grand_total = sum(group.total for group in self.color_size_groups.all()) if self.color_size_groups.exists() else 0
+        
+        # Handle attachment creation
+        if self.attachment and not InquiryAttachment.objects.filter(file=self.attachment.name).exists():
+            InquiryAttachment.objects.create(
+                inquiry=self,
+                file=self.attachment,
+                description=f"Auto-created attachment for inquiry {self.inquiry_no}"
+            )
+        
+        # Save again to update fields, but avoid infinite recursion
+        super().save(update_fields=['grand_total'])
+          
+
+
+class InquiryAttachment(models.Model):
+    inquiry = models.ForeignKey(Inquiry, on_delete=models.CASCADE, related_name='attachments', blank=True, null=True)
+    file = models.FileField(upload_to='inquiries/attachments/', blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Attachment for {self.inquiry.inquiry_no} - {self.file.name}"
+

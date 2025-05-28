@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import *
 
+
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('name', 'email', 'phone')
@@ -22,17 +23,14 @@ class BuyerAdmin(admin.ModelAdmin):
     search_fields = ('name', 'email', 'phone', 'department')
     list_filter = ('department',)
 
+
 admin.site.register(Inquiry)
-
 admin.site.register(Style)
-
 admin.site.register(RepeatOf)
-
 admin.site.register(Item)
-
 admin.site.register(Fabrication)
-
-admin.site.register(SizeRange)
-
-admin.site.register(TotalAccessories)
-
+admin.site.register(Color)
+admin.site.register(ColorTotal)
+admin.site.register(ColorSizeGroup)
+admin.site.register(SizeQuantity)
+admin.site.register(InquiryAttachment)
